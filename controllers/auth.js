@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { ObjectId } = require('mongodb');
 const nodemailer = require('nodemailer');
-const Resend = require('resend');
+const Resend = require('resend').default;
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ---------------- CONFIG ----------------
