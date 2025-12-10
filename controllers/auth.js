@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { ObjectId } = require('mongodb');
-const Resend = require('resend');
+const { Resend } = require("resend");
 
 // ---------------- CONFIG ----------------
 const BCRYPT_SALT = parseInt(process.env.BCRYPT_SALT, 10) || 10;
