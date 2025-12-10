@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { ObjectId } = require('mongodb');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 // ---------------- CONFIG ----------------
 const BCRYPT_SALT = parseInt(process.env.BCRYPT_SALT, 10) || 10;
@@ -12,19 +12,24 @@ const ACCESS_EXPIRES = process.env.ACCESS_TOKEN_EXPIRE || '15m';
 const REFRESH_EXPIRES = process.env.REFRESH_TOKEN_EXPIRE || '7d';
 const REFRESH_COOKIE_NAME = 'refreshToken';
 
-// ---------------- EMAIL (NO VERIFY ON STARTUP) ---------------
-const buildTransporter = () =>
-  nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || "smtp.gmail.com",
-    port: Number(process.env.EMAIL_PORT) || 465,
-    secure: process.env.EMAIL_SECURE === "true" || true,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-    connectionTimeout: 20000,
-  });
+// ---------------- RESEND EMAIL ----------------
+const resend = new Resend(process.env.RESEND_API_KEY);
 
+async function sendEmail({ to, subject, html }) {
+  try {
+    const email = await resend.emails.send({
+      from: process.env.EMAIL_FROM, // e.g. "Finance Tracker <no-reply@yourdomain.com>"
+      to,
+      subject,
+      html,
+    });
+    console.log('✅ Email sent:', email.id);
+    return true;
+  } catch (err) {
+    console.error('❌ Resend email error:', err);
+    return false;
+  }
+}
 
 // ---------------- HELPERS ----------------
 
@@ -65,7 +70,6 @@ const sendTokenResponse = (res, userId, statusCode = 200) => {
     .cookie(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions())
     .json({ success: true, accessToken });
 };
-
 
 // ---------------- CONTROLLERS ----------------
 
@@ -197,19 +201,15 @@ exports.forgotPassword = async (req, res) => {
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
-    const mailOptions = {
-      from: `"Finance Tracker" <${process.env.EMAIL_USER}>`,
+    await sendEmail({
       to: user.email,
       subject: "Password Reset Request",
       html: `
         <p>You requested a password reset.</p>
-        <p>Click link below (10m):</p>
+        <p>Click link below (expires in 10 minutes):</p>
         <a href="${resetUrl}">${resetUrl}</a>
       `
-    };
-
-    const transporter = buildTransporter();
-    transporter.sendMail(mailOptions).catch(err => console.log("Email error:", err.message));
+    });
 
     return res.status(200).json({ success: true, message: "If account exists, email was sent." });
 
