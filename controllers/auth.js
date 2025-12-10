@@ -187,7 +187,7 @@ exports.forgotPassword = async (req, res) => {
 
     try {
       await resend.emails.send({
-        from: "Finance Tracker <no-reply@yourdomain.com>",
+        from: "Finance Tracker <magdelzalameh6@gmail.com>",
         to: user.email,
         subject: "Password Reset Request",
         html: `
