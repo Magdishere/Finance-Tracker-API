@@ -5,6 +5,8 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { ObjectId } = require('mongodb');
 const nodemailer = require('nodemailer');
+const Resend = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ---------------- CONFIG ----------------
 const BCRYPT_SALT = parseInt(process.env.BCRYPT_SALT, 10) || 10;
@@ -174,7 +176,6 @@ exports.refresh = async (req, res) => {
   }
 };
 
-// FORGOT PASSWORD
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -184,11 +185,12 @@ exports.forgotPassword = async (req, res) => {
     const user = await db.collection('users').findOne({ email });
 
     if (!user) {
-      return res.status(200).json({ success: true, message: "If account exists, email was sent." });
+      console.log(`Forgot Password: No account with email ${email}`);
+      return res.status(200).json({ success: true, message: "If an account exists, a password reset email has been sent." });
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetExpires = Date.now() + 10 * 60 * 1000;
+    const resetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     await db.collection('users').updateOne(
       { _id: user._id },
@@ -197,21 +199,21 @@ exports.forgotPassword = async (req, res) => {
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
-    const mailOptions = {
-      from: `"Finance Tracker" <${process.env.EMAIL_USER}>`,
+    // Send email with Resend
+    await resend.emails.send({
+      from: 'Finance Tracker <no-reply@yourdomain.com>',
       to: user.email,
-      subject: "Password Reset Request",
+      subject: 'Password Reset Request',
       html: `
         <p>You requested a password reset.</p>
-        <p>Click link below (10m):</p>
+        <p>Click the link below to reset your password (expires in 10 minutes):</p>
         <a href="${resetUrl}">${resetUrl}</a>
-      `
-    };
+      `,
+    });
 
-    const transporter = buildTransporter();
-    transporter.sendMail(mailOptions).catch(err => console.log("Email error:", err.message));
+    console.log("✅ Password reset email sent via Resend");
 
-    return res.status(200).json({ success: true, message: "If account exists, email was sent." });
+    return res.status(200).json({ success: true, message: "If an account exists, a password reset email has been sent." });
 
   } catch (error) {
     console.error("Forgot Password Error:", error);
