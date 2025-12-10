@@ -12,21 +12,19 @@ const ACCESS_EXPIRES = process.env.ACCESS_TOKEN_EXPIRE || '15m';
 const REFRESH_EXPIRES = process.env.REFRESH_TOKEN_EXPIRE || '7d';
 const REFRESH_COOKIE_NAME = 'refreshToken';
 
-// ---------------- Nodemailer ----------------
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465, // SSL
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// ---------------- EMAIL (NO VERIFY ON STARTUP) ---------------
+const buildTransporter = () =>
+  nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || "smtp.gmail.com",
+    port: process.env.EMAIL_PORT || 587,
+    secure: process.env.EMAIL_SECURE === "true",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+    connectionTimeout: 10000,
+  });
 
-// Verify SMTP connection
-transporter.verify()
-  .then(() => console.log("✅ SMTP transporter is ready"))
-  .catch(err => console.error("❌ SMTP transporter error:", err));
 
 // ---------------- HELPERS ----------------
 
@@ -67,6 +65,7 @@ const sendTokenResponse = (res, userId, statusCode = 200) => {
     .cookie(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions())
     .json({ success: true, accessToken });
 };
+
 
 // ---------------- CONTROLLERS ----------------
 
@@ -185,12 +184,11 @@ exports.forgotPassword = async (req, res) => {
     const user = await db.collection('users').findOne({ email });
 
     if (!user) {
-      console.log(`Forgot Password: No account with email ${email}`);
-      return res.status(200).json({ success: true, message: "If an account exists, a password reset email has been sent." });
+      return res.status(200).json({ success: true, message: "If account exists, email was sent." });
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const resetExpires = Date.now() + 10 * 60 * 1000;
 
     await db.collection('users').updateOne(
       { _id: user._id },
@@ -205,17 +203,15 @@ exports.forgotPassword = async (req, res) => {
       subject: "Password Reset Request",
       html: `
         <p>You requested a password reset.</p>
-        <p>Click the link below to reset your password (expires in 10 minutes):</p>
+        <p>Click link below (10m):</p>
         <a href="${resetUrl}">${resetUrl}</a>
       `
     };
 
-    transporter.sendMail(mailOptions, (err, info) => {
-      if (err) console.error("❌ Error sending reset email:", err);
-      else console.log("✅ Password reset email sent:", info.response);
-    });
+    const transporter = buildTransporter();
+    transporter.sendMail(mailOptions).catch(err => console.log("Email error:", err.message));
 
-    return res.status(200).json({ success: true, message: "If an account exists, a password reset email has been sent." });
+    return res.status(200).json({ success: true, message: "If account exists, email was sent." });
 
   } catch (error) {
     console.error("Forgot Password Error:", error);
