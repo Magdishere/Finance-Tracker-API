@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { ObjectId } = require('mongodb');
-const { Resend } = require('resend');
+const Resend = require('resend');
 
 // ---------------- CONFIG ----------------
 const BCRYPT_SALT = parseInt(process.env.BCRYPT_SALT, 10) || 10;
@@ -14,22 +14,6 @@ const REFRESH_COOKIE_NAME = 'refreshToken';
 
 // ---------------- RESEND EMAIL ----------------
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-async function sendEmail({ to, subject, html }) {
-  try {
-    const email = await resend.emails.send({
-      from: process.env.EMAIL_FROM, // e.g. "Finance Tracker <no-reply@yourdomain.com>"
-      to,
-      subject,
-      html,
-    });
-    console.log('✅ Email sent:', email.id);
-    return true;
-  } catch (err) {
-    console.error('❌ Resend email error:', err);
-    return false;
-  }
-}
 
 // ---------------- HELPERS ----------------
 
@@ -192,7 +176,7 @@ exports.forgotPassword = async (req, res) => {
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const resetExpires = Date.now() + 10 * 60 * 1000;
 
     await db.collection('users').updateOne(
       { _id: user._id },
@@ -201,17 +185,21 @@ exports.forgotPassword = async (req, res) => {
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
-    // Send email using Resend
-    await resend.emails.send({
-      from: "Finance Tracker <no-reply@finance-tracker.com>",
-      to: email,
-      subject: "Password Reset Request",
-      html: `
-        <p>You requested a password reset.</p>
-        <p>Click the link below to reset your password (expires in 10 minutes):</p>
-        <a href="${resetUrl}">${resetUrl}</a>
-      `,
-    });
+    try {
+      await resend.emails.send({
+        from: "Finance Tracker <no-reply@yourdomain.com>",
+        to: user.email,
+        subject: "Password Reset Request",
+        html: `
+          <p>You requested a password reset.</p>
+          <p>Click the link below (expires in 10 minutes):</p>
+          <a href="${resetUrl}">${resetUrl}</a>
+        `,
+      });
+      console.log(`✅ Password reset email sent to ${user.email}`);
+    } catch (err) {
+      console.error("❌ Resend email error:", err);
+    }
 
     return res.status(200).json({ success: true, message: "If account exists, email was sent." });
 
