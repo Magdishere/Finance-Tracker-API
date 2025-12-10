@@ -192,7 +192,7 @@ exports.forgotPassword = async (req, res) => {
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetExpires = Date.now() + 10 * 60 * 1000;
+    const resetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     await db.collection('users').updateOne(
       { _id: user._id },
@@ -201,14 +201,16 @@ exports.forgotPassword = async (req, res) => {
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
-    await sendEmail({
-      to: user.email,
+    // Send email using Resend
+    await resend.emails.send({
+      from: "Finance Tracker <no-reply@finance-tracker.com>",
+      to: email,
       subject: "Password Reset Request",
       html: `
         <p>You requested a password reset.</p>
-        <p>Click link below (expires in 10 minutes):</p>
+        <p>Click the link below to reset your password (expires in 10 minutes):</p>
         <a href="${resetUrl}">${resetUrl}</a>
-      `
+      `,
     });
 
     return res.status(200).json({ success: true, message: "If account exists, email was sent." });
