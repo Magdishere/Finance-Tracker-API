@@ -16,13 +16,13 @@ const REFRESH_COOKIE_NAME = 'refreshToken';
 const buildTransporter = () =>
   nodemailer.createTransport({
     host: process.env.EMAIL_HOST || "smtp.gmail.com",
-    port: process.env.EMAIL_PORT || 587,
-    secure: process.env.EMAIL_SECURE === "true",
+    port: Number(process.env.EMAIL_PORT) || 465,
+    secure: process.env.EMAIL_SECURE === "true" || true,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
-    connectionTimeout: 10000,
+    connectionTimeout: 20000,
   });
 
 
