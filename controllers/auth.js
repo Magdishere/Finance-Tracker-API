@@ -113,7 +113,8 @@ exports.logout = async (req, res) => {
 // GET CURRENT USER
 exports.getMe = async (req, res) => {
   try {
-    if (!req.user?.id) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    if (!req.user?.id)
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     const db = getDB();
     const user = await db.collection('users').findOne(
@@ -121,7 +122,14 @@ exports.getMe = async (req, res) => {
       { projection: { password: 0 } }
     );
 
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (!user)
+      return res.status(404).json({ success: false, message: 'User not found' });
+
+    res.set({
+      "Cache-Control": "no-store, no-cache, must-revalidate, private",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    });
 
     res.status(200).json({
       success: true,
@@ -138,6 +146,7 @@ exports.getMe = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
 
 // REFRESH TOKEN
 exports.refresh = async (req, res) => {
