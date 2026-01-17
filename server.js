@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
-const path = require('path');
+const path = require('path'); // <-- needed for SPA fallback
 const authRoutes = require('./routes/auth');
 const transactionsRoutes = require('./routes/transactions');
 const budgetsRoutes = require('./routes/budgets');
@@ -19,54 +19,53 @@ app.use(cookieParser());
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
-  'https://magdishere.github.io',
-  'https://finance-tracker-api-53xq.onrender.com' // Added production frontend
+  'https://magdishere.github.io'
 ];
 
 app.use(
   cors({
     origin: function(origin, callback) {
-      if (!origin) return callback(null, true);
+      if (!origin) return callback(null, true); // allow Postman, etc.
       if (allowedOrigins.indexOf(origin) === -1) {
         const msg = `CORS policy: origin ${origin} not allowed`;
         return callback(new Error(msg), false);
       }
       return callback(null, true);
     },
-    credentials: true,
+    credentials: true, // allow cookies
   })
 );
 
-// Connect to DB
-connectDB();
+// Connect to DB and start server
+connectDB()
+  .then(() => {
+    // API routes
+    app.use('/api/auth', authRoutes);
+    app.use('/api/transactions', transactionsRoutes);
+    app.use('/api/budgets', budgetsRoutes);
+    app.use('/api/users', usersRoutes);
 
-// API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/transactions', transactionsRoutes);
-app.use('/api/budgets', budgetsRoutes);
-app.use('/api/users', usersRoutes);
+    // Test route
+    app.get('/', (req, res) => res.send('API is running'));
 
-// --- Production Build & SPA Fallback ---
-if (process.env.NODE_ENV === 'production') {
-  // Serve static files from the React app
-  app.use(express.static(path.join(__dirname, '../frontend/build')));
+    // ---------------- SPA fallback ----------------
+    // Serve React app for all other routes
+    app.use((req, res, next) => {
+      // Only serve index.html if not an API route
+      if (req.path.startsWith('/api')) return next();
+      res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
+    });
 
-  // The "catchall" handler: for any request that doesn't
-  // match one above, send back React's index.html file.
-  app.get(/^(?!\/api).*/, (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
+    // Error handler
+    app.use((err, req, res, next) => {
+      console.error(err.stack);
+      res.status(500).json({ success: false, message: 'Server error' });
+    });
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  })
+  .catch(err => {
+    console.error('Failed to connect to the database:', err);
+    process.exit(1); // Exit process if DB connection fails
   });
-} else {
-  app.get('/', (req, res) => {
-    res.send('API is running...');
-  });
-}
-
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ success: false, message: 'Server error' });
-});
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
