@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const path = require('path'); // <-- needed for SPA fallback
 const authRoutes = require('./routes/auth');
 const transactionsRoutes = require('./routes/transactions');
 const budgetsRoutes = require('./routes/budgets');
@@ -24,7 +25,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function(origin, callback) {
-      if (!origin) return callback(null, true); // allow non-browser tools like Postman
+      if (!origin) return callback(null, true); // allow Postman, etc.
       if (allowedOrigins.indexOf(origin) === -1) {
         const msg = `CORS policy: origin ${origin} not allowed`;
         return callback(new Error(msg), false);
@@ -35,10 +36,10 @@ app.use(
   })
 );
 
-// Connect to DB and then start server
+// Connect to DB and start server
 connectDB()
   .then(() => {
-    // Routes
+    // API routes
     app.use('/api/auth', authRoutes);
     app.use('/api/transactions', transactionsRoutes);
     app.use('/api/budgets', budgetsRoutes);
@@ -46,6 +47,14 @@ connectDB()
 
     // Test route
     app.get('/', (req, res) => res.send('API is running'));
+
+    // ---------------- SPA fallback ----------------
+    // Serve React app for all other routes
+    app.use((req, res, next) => {
+      // Only serve index.html if not an API route
+      if (req.path.startsWith('/api')) return next();
+      res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
+    });
 
     // Error handler
     app.use((err, req, res, next) => {
